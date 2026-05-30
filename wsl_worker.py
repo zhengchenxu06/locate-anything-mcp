@@ -156,21 +156,24 @@ def _parse_boxes(answer: str) -> list:
     import re
     if not isinstance(answer, str):
         return []
-    # 检测 empty_box: 模型明确表示没有找到目标
-    if re.search(r"<box>\s*none\s*</box>", answer, re.IGNORECASE):
-        return []  # 返回空列表，empty_detected 由调用者标记
+    # 移除所有 <box>none</box> 标记（逐个过滤，不影响同行的其他有效框）
+    answer_clean = re.sub(
+        r"<box>\s*none\s*</box>", "", answer, flags=re.IGNORECASE
+    )
     boxes = []
     # 匹配标准框 <box><x1><y1><x2><y2></box>
-    for m in re.finditer(r"<box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer):
+    for m in re.finditer(
+        r"<box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer_clean
+    ):
         bbox = [int(x) for x in m.groups()]
         boxes.append({"bbox": bbox, "score": 0.9})
     # 匹配点定位 <box><x><y></box>
     if not boxes:
-        for m in re.finditer(r"<box><(\d+)><(\d+)></box>", answer):
+        for m in re.finditer(r"<box><(\d+)><(\d+)></box>", answer_clean):
             x, y = int(m.group(1)), int(m.group(2))
             boxes.append({"bbox": [x, y, x, y], "score": 0.9})
     # 如果没有 <ref> 标签伴随 <box>，模型不确定 → 降低置信度
-    has_ref = bool(re.search(r"<ref>.*?</ref>", answer, re.DOTALL))
+    has_ref = bool(re.search(r"<ref>.*?</ref>", answer_clean, re.DOTALL))
     if not has_ref:
         for b in boxes:
             b["score"] = 0.5
