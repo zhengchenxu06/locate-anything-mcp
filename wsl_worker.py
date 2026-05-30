@@ -87,7 +87,7 @@ class LocateAnythingWorker:
 class GroundGUIRequest(BaseModel):
     image_b64: str
     description: str
-    mode: str = "fast"
+    mode: str = "auto"
 
 
 @app.get("/health")
@@ -112,15 +112,42 @@ def ground_gui(req: GroundGUIRequest):
             f"Locate the region that matches the following description: "
             f"{req.description}."
         )
-        result = w.predict(image, prompt, generation_mode=req.mode)
+
+        # auto 模式: 先用 Fast
+        actual_mode = req.mode
+        if req.mode == "auto":
+            actual_mode = "fast"
+
+        result = w.predict(image, prompt, generation_mode=actual_mode)
         boxes = _parse_boxes(result)
         empty_detected = (len(boxes) == 0)
-        return {
+        low_confidence = boxes and all(b["score"] < 0.5 for b in boxes)
+        retried = False
+        fast_result = None
+
+        # auto 模式: Fast 质量不够 → Hybrid 重试
+        if req.mode == "auto" and (empty_detected or low_confidence):
+            fast_result = {
+                "boxes": boxes,
+                "empty_detected": empty_detected,
+                "mode_used": "fast",
+            }
+            result = w.predict(image, prompt, generation_mode="hybrid")
+            boxes = _parse_boxes(result)
+            empty_detected = (len(boxes) == 0)
+            actual_mode = "hybrid"
+            retried = True
+
+        resp = {
             "raw_answer": result,
             "boxes": boxes,
             "empty_detected": empty_detected,
-            "mode_used": req.mode,
+            "mode_used": actual_mode,
+            "retried": retried,
         }
+        if fast_result:
+            resp["fast_result"] = fast_result
+        return resp
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -130,24 +157,55 @@ def locate_all(req: dict):
     try:
         image = Image.open(io.BytesIO(base64.b64decode(req["image_b64"])))
         categories = req.get("categories", [])
-        mode = req.get("mode", "fast")
+        actual_mode = req.get("mode", "auto")
         w = _load_worker()
         cats_str = "</c>".join(categories)
         prompt = (
             f"Locate all the instances that matches the following description: "
             f"{cats_str}."
         )
-        result = w.predict(image, prompt, generation_mode=mode)
+
+        # auto 模式: 先用 Fast
+        if actual_mode == "auto":
+            actual_mode = "fast"
+
+        result = w.predict(image, prompt, generation_mode=actual_mode)
         boxes_by_category = _parse_boxes_grouped(result, categories)
         empty_detected = all(
             len(v) == 0 for v in boxes_by_category.values()
         )
-        return {
+        low_confidence = any(
+            v and all(b["score"] < 0.5 for b in v)
+            for v in boxes_by_category.values() if v
+        )
+        retried = False
+        fast_result = None
+
+        # auto 模式: Fast 质量不够 → Hybrid 重试
+        if req.get("mode", "auto") == "auto" and (empty_detected or low_confidence):
+            fast_result = {
+                "boxes_by_category": boxes_by_category,
+                "empty_detected": empty_detected,
+                "mode_used": "fast",
+            }
+            result = w.predict(image, prompt, generation_mode="hybrid")
+            boxes_by_category = _parse_boxes_grouped(result, categories)
+            empty_detected = all(
+                len(v) == 0 for v in boxes_by_category.values()
+            )
+            actual_mode = "hybrid"
+            retried = True
+
+        resp = {
             "raw_answer": result,
             "boxes_by_category": boxes_by_category,
             "empty_detected": empty_detected,
-            "mode_used": mode,
+            "mode_used": actual_mode,
+            "retried": retried,
         }
+        if fast_result:
+            resp["fast_result"] = fast_result
+        return resp
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
