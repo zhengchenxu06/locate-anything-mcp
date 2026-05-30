@@ -51,11 +51,33 @@ curl http://localhost:8765/health
 ### ground_gui — 单目标定位
 
 ```
-输入: image_b64 (截图base64), description (自然语言描述), mode ("fast"|"hybrid")
-输出: {boxes: [{bbox: [x1,y1,x2,y2], score: 1.0}], raw_answer: "..."}
+输入: image_b64 (截图base64), description (自然语言描述), mode ("auto"|"fast"|"hybrid")
+输出:
+{
+  "raw_answer": "...",
+  "boxes": [{"bbox": [396, 370, 608, 502], "score": 0.9}],
+  "empty_detected": false,
+  "mode_used": "auto",
+  "retried": false
+}
 ```
 
 坐标是 0-1000 量化值，需乘以图像实际宽高换算像素：
+
+**mode 参数：**
+
+| mode | 行为 |
+|------|------|
+| `"auto"` (默认) | Fast 先跑，低置信度自动切 Hybrid |
+| `"fast"` | 纯 MTP，最快 |
+| `"hybrid"` | MTP + AR 兜底，最高精度 |
+
+**响应字段：**
+- `score`: 置信度分数 (0-1)，由模型 logit 计算
+- `empty_detected`: 是否检测到空框/无目标
+- `mode_used`: 实际使用的推理模式
+- `retried`: Auto 模式下是否触发了 Hybrid 重试
+- `fast_result`: Auto 模式下 Fast 阶段的原始结果（仅 retried=true 时存在）
 ```python
 px = coord * image_width // 1000
 ```

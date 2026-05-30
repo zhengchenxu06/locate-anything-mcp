@@ -55,11 +55,26 @@ curl http://localhost:8765/health
 ### ground_gui — 单目标定位
 
 ```
-输入: image_b64 (截图base64), description (自然语言描述), mode ("fast"|"hybrid")
-输出: {boxes: [{bbox: [x1,y1,x2,y2], score: 1.0}]}
+输入: image_b64 (截图base64), description (自然语言描述), mode ("auto"|"fast"|"hybrid")
+输出:
+{
+  "raw_answer": "...",
+  "boxes": [{"bbox": [396, 370, 608, 502], "score": 0.9}],
+  "empty_detected": false,
+  "mode_used": "auto",
+  "retried": false
+}
 ```
 
 坐标是 0-1000 量化值，需乘以图像实际宽高换算像素。
+
+**mode 参数：**
+
+| mode | 行为 |
+|------|------|
+| `"auto"` (默认) | Fast 先跑，低置信度自动切 Hybrid 重试 |
+| `"fast"` | 纯 MTP 并行解码，最快 |
+| `"hybrid"` | MTP + AR 兜底，最高精度 |
 
 ### locate_all — 批量检测
 
