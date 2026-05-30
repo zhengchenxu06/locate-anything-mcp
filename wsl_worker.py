@@ -142,14 +142,20 @@ def locate_all(req: dict):
 def _parse_boxes(answer: str) -> list:
     import re
     boxes = []
-    # 匹配 <box><x1><y1><x2><y2></box>
+    # 匹配标准框 <box><x1><y1><x2><y2></box>
     for m in re.finditer(r"<box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer):
-        boxes.append({"bbox": [int(x) for x in m.groups()], "score": 1.0})
-    # 匹配 <box><x><y></box> (点定位)
+        bbox = [int(x) for x in m.groups()]
+        boxes.append({"bbox": bbox, "score": 0.9})
+    # 匹配点定位 <box><x><y></box>
     if not boxes:
         for m in re.finditer(r"<box><(\d+)><(\d+)></box>", answer):
             x, y = int(m.group(1)), int(m.group(2))
-            boxes.append({"bbox": [x, y, x, y], "score": 1.0})
+            boxes.append({"bbox": [x, y, x, y], "score": 0.9})
+    # 如果没有 <ref> 标签伴随 <box>，模型不确定 → 降低置信度
+    has_ref = bool(re.search(r"<ref>.*?</ref>", answer))
+    if not has_ref:
+        for b in boxes:
+            b["score"] = 0.5
     return boxes
 
 
