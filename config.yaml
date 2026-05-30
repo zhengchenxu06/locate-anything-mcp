@@ -1,0 +1,20 @@
+worker:
+  model_path: "/home/locate-anything-model"
+  device: "cuda"
+  dtype: "bfloat16"
+
+server:
+  host: "0.0.0.0"
+  port: 8765
+
+inference:
+  default_mode: "fast"
+  fallback_mode: "hybrid"
+  max_new_tokens: 2048
+  temperature: 0.3
+  top_p: 0.85
+  repetition_penalty: 1.05
+
+bridge:
+  base_url: "http://localhost:8765"
+  timeout: 30
