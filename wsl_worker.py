@@ -113,7 +113,14 @@ def ground_gui(req: GroundGUIRequest):
             f"{req.description}."
         )
         result = w.predict(image, prompt, generation_mode=req.mode)
-        return {"raw_answer": result, "boxes": _parse_boxes(result)}
+        boxes = _parse_boxes(result)
+        empty_detected = (len(boxes) == 0)
+        return {
+            "raw_answer": result,
+            "boxes": boxes,
+            "empty_detected": empty_detected,
+            "mode_used": req.mode,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -131,9 +138,15 @@ def locate_all(req: dict):
             f"{cats_str}."
         )
         result = w.predict(image, prompt, generation_mode=mode)
+        boxes_by_category = _parse_boxes_grouped(result, categories)
+        empty_detected = all(
+            len(v) == 0 for v in boxes_by_category.values()
+        )
         return {
             "raw_answer": result,
-            "boxes_by_category": _parse_boxes_grouped(result, categories),
+            "boxes_by_category": boxes_by_category,
+            "empty_detected": empty_detected,
+            "mode_used": mode,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -143,6 +156,9 @@ def _parse_boxes(answer: str) -> list:
     import re
     if not isinstance(answer, str):
         return []
+    # 检测 empty_box: 模型明确表示没有找到目标
+    if re.search(r"<box>\s*none\s*</box>", answer, re.IGNORECASE):
+        return []  # 返回空列表，empty_detected 由调用者标记
     boxes = []
     # 匹配标准框 <box><x1><y1><x2><y2></box>
     for m in re.finditer(r"<box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer):
