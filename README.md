@@ -34,14 +34,14 @@ pip install fastmcp requests pyyaml Pillow
 wsl -d Ubuntu -- pip3 install fastapi uvicorn transformers torch bitsandbytes accelerate Pillow
 
 # 3. 注册 MCP Server
-claude mcp add locate-anything -- python "C:\Users\Administrator\locate-anything-mcp\mcp_server.py"
+claude mcp add locate-anything -- python "<你的项目路径>\locate-anything-mcp\mcp_server.py"
 ```
 
 ### 启动
 
 ```bash
 # 1. 先启动 WSL2 Worker
-wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/Administrator/locate-anything-mcp && setsid python3 wsl_worker.py &>/tmp/worker.log & disown"
+wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/<你的用户名>/locate-anything-mcp && setsid python3 wsl_worker.py &>/tmp/worker.log & disown"
 
 # 2. 验证
 curl http://localhost:8765/health
